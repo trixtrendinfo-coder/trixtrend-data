@@ -1,0 +1,68 @@
+name: Verify and update Trix Trend chart
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish verified results (also requires SYNC_ENABLED)
+        required: true
+        default: false
+        type: boolean
+  push:
+    paths:
+      - '*.mjs'
+      - 'package.json'
+      - 'baseline.json'
+      - '.github/workflows/sync.yml'
+  schedule:
+    - cron: '17,47 * * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trixtrend-verified-data-sync
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.event_name != 'schedule' || vars.SYNC_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Check return calculations, API restrictions and token handling
+        run: node --test *.test.mjs
+
+  collect:
+    needs: verify
+    if: vars.CTRADER_CONFIGURED == 'true' && ((github.event_name == 'schedule' && vars.SYNC_ENABLED == 'true') || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Read the authorized account and validate its history
+        run: node collect.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CTRADER_CLIENT_ID: ${{ secrets.CTRADER_CLIENT_ID }}
+          CTRADER_CLIENT_SECRET: ${{ secrets.CTRADER_CLIENT_SECRET }}
+          CTRADER_ACCOUNT_LOGIN: ${{ secrets.CTRADER_ACCOUNT_LOGIN }}
+          CTRADER_TOKEN_BUNDLE: ${{ secrets.CTRADER_TOKEN_BUNDLE }}
+          STATE_KEY: ${{ secrets.STATE_KEY }}
+          CTRADER_ENVIRONMENT: live
+          PUBLISH_DATA: ${{ vars.SYNC_ENABLED == 'true' && (github.event_name == 'schedule' || inputs.publish == true) }}
