@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+private/
+node_modules/
+*.log
+tokens.json
+credentials.json
+test/browser-preview.html
+test/browser-fixture.json
+
