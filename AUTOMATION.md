@@ -66,6 +66,12 @@ skaičiuojamas dauginant to laikotarpio uždarymų grąžas pagal svetainės met
 Kiekvienas dalinis uždarymas laikomas atskiru įvykdymu. Skaičiuojami ir uždarymai
 su nuliniu rezultatu.
 
+Po kortele pateikiamas trumpas angliškas komentaras apie strategijos savaitės
+rezultatą ir bendrą rinkos foną. Rinkos fonui naudojami tos savaitės [Cboe
+numatomo kintamumo duomenys](https://www.cboe.com/tradable_products/vix/vix_historical_data).
+Komentare neminimi atskiri instrumentai ar sandoriai. Jeigu savaitės rinkos
+duomenų nepakanka, komentare apibūdinamas patikrintas strategijos rezultatas.
+
 1. Paruošk paketą komanda `node scripts/package-deployment.mjs`. Įkelk `deploy/`
    failus į `trixtrendinfo-coder/trixtrend-data` saugyklos `main` šaknį, o
    `telegram-weekly.yml` į `.github/workflows/telegram-weekly.yml`.

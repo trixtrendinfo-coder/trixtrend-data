@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { collect } from './collector.mjs';
 import { GitHubStore } from './github-store.mjs';
+import { getMarketContext } from './market-context.mjs';
 import { sendWeeklyPhoto } from './telegram.mjs';
 
 const DAY = 86400000;
@@ -65,8 +66,20 @@ function deliveryStatus(entry, week) {
   return status;
 }
 
+function weeklyComment(performance, closedTrades, marketContext) {
+  if (!closedTrades) {
+    return ['No trades closed this week.', marketContext].filter(Boolean).join(' ');
+  }
+  const outcome = {
+    '+': 'The strategy finished the week with a net gain.',
+    '-': 'The strategy finished the week with a net loss.'
+  }[performance[0]] ?? 'The strategy finished the week broadly flat.';
+  return [outcome, marketContext].filter(Boolean).join(' ');
+}
+
 export async function runWeeklyReport({ week, baseline, store, connection, publish = false,
-  token, chatId = CHANNEL, output, collectReport = collect, render = renderPhoto, send = sendWeeklyPhoto }) {
+  token, chatId = CHANNEL, output, collectReport = collect, render = renderPhoto, send = sendWeeklyPhoto,
+  marketContextFor = getMarketContext }) {
   const stateFile = `telegram-weeks/${week.from}.json`;
   const message = `Record Quant Gold Telegram status for ${week.from} [skip ci]`;
   const prior = publish ? await store.read(stateFile) : null;
@@ -82,12 +95,16 @@ export async function runWeeklyReport({ week, baseline, store, connection, publi
   }
   const period = displayDate.formatRange(Date.parse(from + 'T00:00:00Z'), Date.parse(through + 'T00:00:00Z'));
   const performance = displayPercent.format(performancePercent / 100);
+  const [photo, marketContext] = await Promise.all([
+    render({ period, performance, closedTrades, output }),
+    marketContextFor(week)
+  ]);
   const caption = [
     'Quant Gold | Weekly results', period, '',
     `Weekly return ${performance}`, `Closed trades ${closedTrades}`, '',
+    weeklyComment(performance, closedTrades, marketContext), '',
     'Past performance does not guarantee future results.', 'https://www.trixtrend.com/quant-gold'
   ].join('\n');
-  const photo = await render({ period, performance, closedTrades, output });
   if (!publish) return { status: 'preview', weeklyReport, caption };
 
   const reportDates = { from, through };

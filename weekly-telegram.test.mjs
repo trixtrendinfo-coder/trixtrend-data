@@ -21,6 +21,10 @@ function fixture(publish = true) {
     }
   };
   return { files, calls, options: { week, store, publish,
+    async marketContextFor(period) {
+      assert.deepEqual(period, week);
+      return 'Several market volatility indicators rose over the week.';
+    },
     async collectReport(options) {
       calls.collect++;
       assert.equal(options.publish, false);
@@ -38,6 +42,7 @@ function fixture(publish = true) {
       calls.send++;
       assert.equal(chatId, '@TrixTrendAlgoMonitor');
       assert.match(caption, /Weekly return \+2\.60%\nClosed trades 10/);
+      assert.match(caption, /finished the week with a net gain\. Several market volatility indicators rose/);
       assert.equal(files.get(stateFile).value.status, 'pending');
       return { messageId: 87 };
     }
@@ -64,6 +69,24 @@ test('preview generates the exact card and caption without claiming a week or se
   assert.match(result.caption, /https:\/\/www\.trixtrend\.com\/quant-gold/);
   assert.equal(f.files.size, 0);
   assert.deepEqual(f.calls, { collect: 1, render: 1, send: 0 });
+});
+
+test('every caption comments on the result when market context is unavailable', async () => {
+  const scenarios = [
+    [-2.5, 10, /finished the week with a net loss/],
+    [-0.001, 10, /finished the week broadly flat/],
+    [0, 0, /No trades closed this week/]
+  ];
+  for (const [performancePercent, closedTrades, expectedComment] of scenarios) {
+    const { options } = fixture(false);
+    const result = await runWeeklyReport({ ...options,
+      async collectReport() { return { weeklyReport: { ...week, performancePercent, closedTrades } }; },
+      async render() { return Buffer.from('test photo'); },
+      async marketContextFor() { return null; }
+    });
+    assert.match(result.caption, expectedComment);
+    assert.doesNotMatch(result.caption, /volatility/);
+  }
 });
 
 test('atomic weekly claim prevents both concurrent and subsequent duplicate posts', async () => {
