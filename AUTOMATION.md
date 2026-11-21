@@ -32,9 +32,9 @@ nes atnaujinant cTrader prieigą senasis refresh tokenas tampa nebegaliojantis.
 Atnaujintas tokenas išsaugomas prieš renkant istoriją. Jei procesas nutrūktų tarp
 atnaujinimo ir išsaugojimo, reikėtų iš naujo suteikti skaitymo prieigą.
 
-`GITHUB_TOKEN` galioja konkretaus darbo vykdymo metu ir naudojamas tik dviem failams
-atnaujinti (`session.enc.json`, `quant-gold.json`). Nėra asmeninio GitHub API rakto.
-Workflow nenaudoja pull_request ar pull_request_target ir neįdiegia npm paketų.
+`GITHUB_TOKEN` galioja konkretaus darbo vykdymo metu. Jis naudojamas
+`session.enc.json`, `quant-gold.json` ir savaitinių „Telegram“ įrašų būsenai.
+Darbo eigos naudoja „GitHub Actions“ suteiktą raktą ir nevykdomos iš „pull request“.
 
 ## Paleidimo seka
 
@@ -55,3 +55,44 @@ nėra garantuojamas.
 Open API programa `Trix Trend Performance` (49920) pateikta cTrader patvirtinimui.
 Tikri tokenai dar neįvesti; prekybos užklausų programoje nėra.
 Gamybinis surinkimas turi likti išjungtas, kol neįvykdyti pirmiau aprašyti patikrinimai.
+
+## „Quant Gold“ ataskaita į „Telegram“
+
+„GitHub Actions“ publikavimas numatytas sekmadieniais 10.30 val. Vilniaus laiku.
+Į ataskaitą įtraukiami uždarymai nuo pirmadienio pradžios iki šeštadienio pabaigos
+pagal „cTrader“ ataskaitų UTC+2 laiką. Taip įtraukiami ir penktadienio sesijos
+uždarymai, kurie UTC+2 laiku jau patenka į šeštadienį. Savaitės pokytis
+skaičiuojamas dauginant to laikotarpio uždarymų grąžas pagal svetainės metodiką.
+Kiekvienas dalinis uždarymas laikomas atskiru įvykdymu. Skaičiuojami ir uždarymai
+su nuliniu rezultatu.
+
+1. Paruošk paketą komanda `node scripts/package-deployment.mjs`. Įkelk `deploy/`
+   failus į `trixtrendinfo-coder/trixtrend-data` saugyklos `main` šaknį, o
+   `telegram-weekly.yml` į `.github/workflows/telegram-weekly.yml`.
+2. Užbaik „cTrader Open API“ tik skaitymo prijungimą ir nustatyk `CTRADER_CONFIGURED=true`.
+   „Actions“ atidaryk **Quant Gold weekly Telegram report**, nurodyk norimos
+   savaitės pirmadienį `week_of` ir palik `publish` išjungtą. Atsisiųsk sukurtą
+   peržiūros artefaktą ir palygink jo duomenis su „cTrader“ istorija. Po sutikrinimo
+   nustatyk `CTRADER_WEEKLY_VERIFIED=true`.
+3. „Trix Trend Algo Monitor“ kanale suteik botui administratoriaus teisę skelbti
+   pranešimus. Boto raktą įrašyk į „GitHub Actions“ paslaptį `TELEGRAM_BOT_TOKEN`.
+   Numatytoji paskirtis `@TrixTrendAlgoMonitor`. Jei kanalas neturi viešo
+   naudotojo vardo, įrašyk skaitinį kanalo ID į `TELEGRAM_CHAT_ID` kintamąjį.
+4. Įjunk `TELEGRAM_WEEKLY_ENABLED=true`. Jei vieną iš ateinančių ataskaitų jau
+   suplanuoji rankiniu būdu, `TELEGRAM_WEEKLY_START` nurodyk pirmosios automatinės
+   ataskaitos savaitės pirmadienį. Pavyzdžiui, jei lapkričio 22 d. įrašas
+   suplanuotas ranka, `2026-11-23` reiškia pirmą automatinį įrašą lapkričio 29 d.
+
+Rankiniam publikavimui aiškiai įvesk tos savaitės pirmadienį ir pažymėk
+`publish`. Savaitės būseną saugo `telegram-weeks/YYYY-MM-DD.json`. Joje yra
+datos, būsena ir sėkmingai paskelbto įrašo ID. Telegram patvirtinus atmetimą
+(`failed`), ištaisyk priežastį ir paleisk konkretų laikotarpį iš naujo.
+Jeigu po siuntimo būsena lieka `pending`, pirmiausia patikrink kanalą, kol darbo
+eiga nevykdoma. Jei įrašas matomas, būsenos failą pakeisk į `sent` ir įrašyk jo
+skaitinį `messageId`. Jei patvirtinai, kad įrašo nėra, pakeisk būseną į `failed`
+ir pakartok tos savaitės rankinį paleidimą.
+
+„Telegram“ darbo eiga naudoja patikrintą „cTrader“ istoriją ir išsaugo atnaujintą
+skaitymo sesiją. Svetainės `quant-gold.json` ji nerašo. Praleistam sekmadieniui
+skelbtiną savaitę galima pasirinkti rankiniu būdu. GitHub suplanuotus paleidimus
+gali atidėti. Viešos saugyklos neveiklumas 60 dienų gali išjungti suplanuotą eigą.

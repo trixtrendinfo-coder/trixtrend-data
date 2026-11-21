@@ -2,6 +2,7 @@ import { setTimeout as pause } from 'node:timers/promises';
 import { Buffer } from 'node:buffer';
 
 const paths = new Set(['session.enc.json', 'quant-gold.json']);
+const weeklyStatePath = /^telegram-weeks\/\d{4}-\d{2}-\d{2}\.json$/;
 
 export class GitHubStore {
   constructor({ repository, token, fetcher = fetch }) {
@@ -13,7 +14,7 @@ export class GitHubStore {
     this.fetcher = fetcher;
   }
   async call(path, options = {}) {
-    if (!paths.has(path)) throw new Error('Write path is not allowed');
+    if (!paths.has(path) && !weeklyStatePath.test(path)) throw new Error('Write path is not allowed');
     const response = await this.fetcher(`https://api.github.com/repos/${this.repository}/contents/${path}`, {
       ...options,
       headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${this.token}`,
@@ -29,6 +30,13 @@ export class GitHubStore {
     if (!entry) return null;
     if (!entry.content || !entry.sha || entry.encoding !== 'base64') throw new Error('Invalid GitHub file response');
     return { sha: entry.sha, value: JSON.parse(Buffer.from(entry.content, 'base64').toString('utf8')) };
+  }
+  async writeChecked(path, value, message, expectedSha) {
+    const content = Buffer.from(JSON.stringify(value, null, 2) + '\n').toString('base64');
+    const result = await this.call(path, { method: 'PUT', body: JSON.stringify({ message, content,
+      branch: 'main', ...(expectedSha ? { sha: expectedSha } : {}) }) });
+    if (!result?.content?.sha) throw new Error('GitHub did not confirm the report status');
+    return result.content.sha;
   }
   async write(path, value, message) {
     const content = Buffer.from(JSON.stringify(value, null, 2) + '\n').toString('base64');

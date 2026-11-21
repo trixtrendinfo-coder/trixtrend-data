@@ -29,7 +29,7 @@ export async function refreshTokens(tokens, credentials, fetcher = fetch, now = 
 }
 
 export async function collect({ baseline, store, stateKey, clientId, clientSecret,
-  accountLogin, environment = 'live', bootstrapTokens, publish = false,
+  accountLogin, environment = 'live', bootstrapTokens, publish = false, reportWeek,
   apiFactory = env => new CTrader(env), fetcher = fetch, now = () => Date.now() }) {
   if (!clientId || !clientSecret || !/^\d+$/.test(String(accountLogin))) {
     throw new Error('cTrader application credentials and target account login are required');
@@ -71,14 +71,15 @@ export async function collect({ baseline, store, stateKey, clientId, clientSecre
         String(accountInfo.trader?.balanceVersion) !== String(after.trader?.balanceVersion)) {
       throw new Error('Account changed while history was collected; next run will retry');
     }
-    const result = buildHistory({ baseline, ...history,
-      moneyDigits: accountInfo.trader?.moneyDigits ?? 2, asOf });
+    const { weeklyReport, ...result } = buildHistory({ baseline, ...history,
+      moneyDigits: accountInfo.trader?.moneyDigits ?? 2, asOf, reportWeek });
     const prior = await store.read('quant-gold.json');
     validateChartData(result, baseline, prior?.value ?? baseline);
     if (publish) {
       await store.write('quant-gold.json', result, 'Update verified performance data [skip ci]');
     }
     return { published: publish, through: result.through, points: result.points.length,
-      totalReturn: +(result.points.at(-1).index - 100).toFixed(2), mode: result.mode };
+      totalReturn: +(result.points.at(-1).index - 100).toFixed(2), mode: result.mode,
+      ...(weeklyReport && { weeklyReport }) };
   } finally { api.close(); }
 }

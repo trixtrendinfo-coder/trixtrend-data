@@ -30,7 +30,41 @@ export function historyTime(value, offsetMinutes = 0) {
   return Date.parse(value.endsWith('Z') ? value : value + 'Z') - offsetMinutes * 60000;
 }
 
-export function buildHistory({ baseline, deals, cashFlows, moneyDigits = 2, asOf }) {
+function statementDayStart(date, offset) {
+  if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new Error('Invalid report date');
+  }
+  const wallTime = new Date(date + 'T00:00:00Z');
+  if (!Number.isFinite(wallTime.getTime()) || wallTime.toISOString().slice(0, 10) !== date) {
+    throw new Error('Invalid report date');
+  }
+  return wallTime.getTime() - offset * 60000;
+}
+
+function summarizeClosings(reportWeek, events, offset, historyStart, asOf) {
+  const { from, through } = reportWeek ?? {};
+  const first = statementDayStart(from, offset);
+  const last = statementDayStart(through, offset);
+  const end = last + 86400000;
+  if (last < first || first < historyStart || end > asOf) {
+    throw new Error('Report period is outside the verified history');
+  }
+  let factor = 1;
+  let closedTrades = 0;
+  for (const event of events) {
+    if (event.isClosing && event.timestamp >= first && event.timestamp < end) {
+      factor *= event.factor;
+      closedTrades++;
+    }
+  }
+  const performancePercent = (factor - 1) * 100;
+  if (!Number.isFinite(performancePercent) || !(factor > 0)) {
+    throw new Error('Invalid report return');
+  }
+  return { from, through, performancePercent, closedTrades };
+}
+
+export function buildHistory({ baseline, deals, cashFlows, moneyDigits = 2, asOf, reportWeek }) {
   const offset = baseline.sourceUtcOffsetMinutes ?? 0;
   if (!Number.isInteger(offset) || Math.abs(offset) > 840) throw new Error('Invalid statement time offset');
   const time = value => historyTime(value, offset);
@@ -54,7 +88,7 @@ export function buildHistory({ baseline, deals, cashFlows, moneyDigits = 2, asOf
     }
     const r = closedReturn(d, moneyDigits);
     if (r.timestamp >= start && r.timestamp <= asOf) {
-      events.push({ ...r, version: d.closePositionDetail.balanceVersion, id: String(d.dealId) });
+      events.push({ ...r, version: d.closePositionDetail.balanceVersion, id: String(d.dealId), isClosing: true });
     }
   }
   const cashSeen = new Set();
@@ -111,7 +145,8 @@ export function buildHistory({ baseline, deals, cashFlows, moneyDigits = 2, asOf
     mode: 'automatic',
     returnType: 'cash-flow-adjusted-closed-trade-return',
     maxDrawdown: { value: -12.07, source: 'owner-specified', automatic: false },
-    points: [...baseline.points, ...points.filter(p => time(p.date) > cutoff)]
+    points: [...baseline.points, ...points.filter(p => time(p.date) > cutoff)],
+    ...(reportWeek !== undefined && { weeklyReport: summarizeClosings(reportWeek, events, offset, start, asOf) })
   };
 }
 

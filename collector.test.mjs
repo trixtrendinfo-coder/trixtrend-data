@@ -61,6 +61,7 @@ test('complete collection preserves baseline, handles UTC+2 and publishes saniti
   const result = await collect(f.options);
   assert.equal(result.published, true);
   assert.equal(result.totalReturn, 21);
+  assert.equal(result.weeklyReport, undefined);
   const data = f.files.get('quant-gold.json');
   assert.deepEqual(data.points.slice(0, 2), baseline.points);
   assert.equal(data.points.at(-1).date, '2026-11-21T12:00:00.000');
@@ -70,6 +71,16 @@ test('complete collection preserves baseline, handles UTC+2 and publishes saniti
   assert.ok(f.api.closed);
   assert.deepEqual(f.writes.map(w => w.path), ['session.enc.json', 'quant-gold.json']);
   assert.ok(f.requests.every(t => [2100, 2102, 2121, 2133, 2143, 2149].includes(t)));
+});
+test('collector returns an optional report without including it in the public data', async () => {
+  const f = fixture();
+  const reportWeek = { from: '2026-11-20', through: '2026-11-20' };
+  const { weeklyReport } = await collect({ ...f.options, reportWeek });
+  assert.equal(weeklyReport.from, reportWeek.from);
+  assert.equal(weeklyReport.through, reportWeek.through);
+  assert.equal(weeklyReport.closedTrades, 1);
+  assert.ok(Math.abs(weeklyReport.performancePercent - 10) < 1e-10);
+  assert.equal(f.files.get('quant-gold.json').weeklyReport, undefined);
 });
 test('trade-enabled authorization is rejected and previous chart remains intact', async () => {
   const f = fixture({ scope: 1 });
