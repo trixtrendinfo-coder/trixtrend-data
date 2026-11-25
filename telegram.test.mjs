@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { sendWeeklyPhoto } from './telegram.mjs';
+import { sendWeeklyPhoto, verifyPostingChannel } from './telegram.mjs';
 
 const token = '123:fake_token-for_test';
 const channelId = -1001234567890;
@@ -42,6 +42,17 @@ test('posts a plain caption and photo to the verified numeric Telegram channel',
   assert.equal(body.get('parse_mode'), null);
   assert.equal(body.get('photo').type, 'image/png');
   assert.deepEqual(Buffer.from(await body.get('photo').arrayBuffer()), photo);
+});
+
+test('verifies the Telegram posting permission using only read-only methods', async () => {
+  const { calls, fetcher } = telegramMock();
+  assert.equal(await verifyPostingChannel({ token, chatId: options.chatId, fetcher }), channelId);
+  assert.deepEqual(calls.map(({ method }) => method), ['getMe', 'getChat', 'getChatMember']);
+
+  const restricted = telegramMock({ member: { ...administrator, can_post_messages: false } });
+  await assert.rejects(verifyPostingChannel({ token, chatId: channelId, fetcher: restricted.fetcher }),
+    { deliveryState: 'rejected' });
+  assert.deepEqual(restricted.calls.map(({ method }) => method), ['getMe', 'getChat', 'getChatMember']);
 });
 
 test('rejects invalid destinations and refuses to post to a group or without posting permission', async () => {

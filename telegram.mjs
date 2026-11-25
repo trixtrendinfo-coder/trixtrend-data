@@ -42,20 +42,14 @@ async function telegramRequest({ token, method, fields, upload, fetcher }) {
   throw deliveryError(`Telegram ${method} returned an unconfirmed result.`, failureState);
 }
 
-export async function sendWeeklyPhoto({ token, chatId, photo, caption, fetcher = fetch }) {
+export async function verifyPostingChannel({ token, chatId, fetcher = fetch }) {
   if (typeof token !== 'string' || !/^\d+:[A-Za-z0-9_-]+$/.test(token)) {
     throw deliveryError('A valid Telegram bot token is required.');
   }
   const target = typeof chatId === 'string' || typeof chatId === 'number' ? String(chatId) : '';
   if (!isTarget(target)) throw deliveryError('A Telegram channel username or numeric channel ID is required.');
-  if (!Buffer.isBuffer(photo) || photo.length === 0 || photo.length > MAX_PHOTO_BYTES) {
-    throw deliveryError('The Telegram photo must be a non-empty Buffer up to 10 MB.');
-  }
-  if (typeof caption !== 'string' || !caption.trim() || caption.length > 1024) {
-    throw deliveryError('The Telegram caption must contain between 1 and 1,024 characters.');
-  }
 
-  const request = (method, fields, upload) => telegramRequest({ token, method, fields, upload, fetcher });
+  const request = (method, fields) => telegramRequest({ token, method, fields, fetcher });
   const [bot, channel] = await Promise.all([
     request('getMe', {}),
     request('getChat', { chat_id: target })
@@ -68,18 +62,29 @@ export async function sendWeeklyPhoto({ token, chatId, photo, caption, fetcher =
     throw deliveryError('Telegram did not confirm the configured broadcast channel.');
   }
 
-  // Use the resolved numeric channel ID throughout so a username change cannot redirect the post.
   const member = await request('getChatMember', { chat_id: channel.id, user_id: bot.id });
   if (member?.user?.id !== bot.id || member.status !== 'administrator' || member.can_post_messages !== true) {
     throw deliveryError('The Telegram bot requires permission to post messages in the channel.');
   }
+  return channel.id;
+}
 
+export async function sendWeeklyPhoto({ token, chatId, photo, caption, fetcher = fetch }) {
+  if (!Buffer.isBuffer(photo) || photo.length === 0 || photo.length > MAX_PHOTO_BYTES) {
+    throw deliveryError('The Telegram photo must be a non-empty Buffer up to 10 MB.');
+  }
+  if (typeof caption !== 'string' || !caption.trim() || caption.length > 1024) {
+    throw deliveryError('The Telegram caption must contain between 1 and 1,024 characters.');
+  }
+
+  // Use the resolved numeric channel ID so a username change cannot redirect the post.
+  const channelId = await verifyPostingChannel({ token, chatId, fetcher });
   const upload = new FormData();
-  upload.append('chat_id', String(channel.id));
+  upload.append('chat_id', String(channelId));
   upload.append('photo', new Blob([photo], { type: 'image/png' }), 'quant-gold.png');
   upload.append('caption', caption);
-  const message = await request('sendPhoto', undefined, upload);
-  if (!Number.isSafeInteger(message?.message_id) || message.message_id <= 0 || message.chat?.id !== channel.id) {
+  const message = await telegramRequest({ token, method: 'sendPhoto', upload, fetcher });
+  if (!Number.isSafeInteger(message?.message_id) || message.message_id <= 0 || message.chat?.id !== channelId) {
     throw deliveryError('Telegram did not confirm the posted photo and channel.', 'unknown');
   }
   return { messageId: message.message_id };

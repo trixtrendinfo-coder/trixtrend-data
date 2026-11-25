@@ -39,11 +39,12 @@ export async function collect({ baseline, store, stateKey, clientId, clientSecre
   let tokens = checkTokens(encrypted ? decryptState(encrypted.value, stateKey) : bootstrapTokens);
   // Verify the encryption key before issuing a refresh, which invalidates the old refresh token.
   encryptState(tokens, stateKey);
-  if (!encrypted || tokens.expiresAt - now() < 7 * 86400000) {
-    // Refresh only when necessary. If this is a bootstrap, preserve it before any API operation.
-    if (encrypted) tokens = await refreshTokens(tokens, credentials, fetcher, now());
-    // Persist immediately, even when a later history validation fails. No secrets in logs/artifacts.
-    await store.write('session.enc.json', encryptState(tokens, stateKey), 'Maintain encrypted read-only connection [skip ci]');
+  const saveSession = () => store.write('session.enc.json', encryptState(tokens, stateKey),
+    'Maintain encrypted read-only connection [skip ci]');
+  if (encrypted && tokens.expiresAt - now() < 7 * 86400000) {
+    tokens = await refreshTokens(tokens, credentials, fetcher, now());
+    // Persist the rotation even when a later history validation fails.
+    await saveSession();
   }
   if (tokens.expiresAt <= now()) throw new Error('Access token is expired; bootstrap must be renewed');
   const api = apiFactory(environment);
@@ -75,6 +76,8 @@ export async function collect({ baseline, store, stateKey, clientId, clientSecre
       moneyDigits: accountInfo.trader?.moneyDigits ?? 2, asOf, reportWeek });
     const prior = await store.read('quant-gold.json');
     validateChartData(result, baseline, prior?.value ?? baseline);
+    // A new bootstrap remains replaceable until scope, account and history all validate.
+    if (!encrypted) await saveSession();
     if (publish) {
       await store.write('quant-gold.json', result, 'Update verified performance data [skip ci]');
     }

@@ -52,9 +52,8 @@ nėra garantuojamas.
 
 ## Esama būsena
 
-Open API programa `Trix Trend Performance` (49920) pateikta cTrader patvirtinimui.
-Tikri tokenai dar neįvesti; prekybos užklausų programoje nėra.
-Gamybinis surinkimas turi likti išjungtas, kol neįvykdyti pirmiau aprašyti patikrinimai.
+„cTrader“ Open API programa `Trix Trend Performance` (49920) patvirtinta.
+Gamybinis surinkimas įjungiamas sutikrinus tik skaitymo prieigą ir istoriją.
 
 ## „Quant Gold“ ataskaita į „Telegram“
 
@@ -84,6 +83,8 @@ duomenų nepakanka, komentare apibūdinamas patikrintas strategijos rezultatas.
    pranešimus. Boto raktą įrašyk į „GitHub Actions“ paslaptį `TELEGRAM_BOT_TOKEN`.
    Numatytoji paskirtis `@TrixTrendAlgoMonitor`. Jei kanalas neturi viešo
    naudotojo vardo, įrašyk skaitinį kanalo ID į `TELEGRAM_CHAT_ID` kintamąjį.
+   Rankinio **Run workflow** paleidimo parinktis `check_telegram` patikrina boto
+   teisę skelbti. Šį patikrinimą galima atlikti iki prijungiant „cTrader“.
 4. Įjunk `TELEGRAM_WEEKLY_ENABLED=true`. Jei vieną iš ateinančių ataskaitų jau
    suplanuoji rankiniu būdu, `TELEGRAM_WEEKLY_START` nurodyk pirmosios automatinės
    ataskaitos savaitės pirmadienį. Pavyzdžiui, jei lapkričio 22 d. įrašas

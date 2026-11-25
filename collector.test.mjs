@@ -85,8 +85,19 @@ test('collector returns an optional report without including it in the public da
 test('trade-enabled authorization is rejected and previous chart remains intact', async () => {
   const f = fixture({ scope: 1 });
   await assert.rejects(collect(f.options), /view-only/);
+  assert.equal(f.writes.length, 0);
   assert.deepEqual(f.files.get('quant-gold.json'), baseline);
   assert.ok(!f.requests.includes(2133));
+});
+test('bootstrap remains replaceable when the account or history cannot be verified', async () => {
+  const wrongAccount = fixture();
+  await assert.rejects(collect({ ...wrongAccount.options, accountLogin: '987654' }), /not authorized/);
+  assert.equal(wrongAccount.writes.length, 0);
+
+  const historyFailure = fixture({ failHistory: true });
+  await assert.rejects(collect(historyFailure.options), /History/);
+  assert.equal(historyFailure.writes.length, 0);
+  assert.equal(historyFailure.files.has('session.enc.json'), false);
 });
 test('API failure does not overwrite the public chart', async () => {
   const f = fixture({ initialState: true, failHistory: true });
