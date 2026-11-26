@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "through": "2026-11-26",
-  "updatedAt": "2026-11-26T19:22:40.300Z",
+  "updatedAt": "2026-11-26T20:37:15.099Z",
   "mode": "automatic",
   "returnType": "cash-flow-adjusted-closed-trade-return",
   "maxDrawdown": {
